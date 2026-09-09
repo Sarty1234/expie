@@ -1,0 +1,25 @@
+﻿<Window x:Class="Expie.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:gif="http://wpfanimatedgif.codeplex.com"
+        xmlns:local="clr-namespace:Expie"
+        mc:Ignorable="d"
+        Title="MainWindow"
+        Height="200"
+        Width="200"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        Loaded="Window_Loaded"
+        x:Name="Window"
+        >
+
+    <Grid Background="Transparent">
+        <Image MouseLeftButtonDown="AnimImage_MouseLeftButtonDown" MouseRightButtonDown="AnimImage_MouseRightButtonDown" Name="AnimImage" Width="100" Height="100" Source="/Gifs/bk3.png" HorizontalAlignment="Left" Margin="0,0,0,0" VerticalAlignment="Top" />
+        <!-- gif:ImageBehavior.AnimatedSource="/Gifs/expie-idle1.gif" -->
+    </Grid>
+</Window>
