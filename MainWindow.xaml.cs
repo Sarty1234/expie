@@ -1,17 +1,9 @@
-﻿using System.ComponentModel;
-using System.Runtime.InteropServices;
-using System.Text;
+﻿using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using System.Windows.Threading;
+using System.IO;
 
 namespace Expie
 {
@@ -20,7 +12,6 @@ namespace Expie
     /// </summary>
     public partial class MainWindow : Window
     {
-        Rect workscreen = new Rect(0, -1, 100, 100);
 
         public MainWindow()
         {
@@ -49,6 +40,9 @@ namespace Expie
 
             // Combines ToolWindow (hide from Alt+Tab) and Transparent (click-through)
             SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_TOOLWINDOW | WM_NCHITTEST);
+
+
+            CreateDirectories();
 
 
             _timer = new DispatcherTimer();
@@ -85,32 +79,81 @@ namespace Expie
 
 
 
-        const int StealthDurationTime = 4;
-        const int RandomEventReverseChance = 50;
+        [DllImport("user32.dll")]
+        private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
 
-        DateTime _CuriosityStart = DateTime.MinValue;
+        [StructLayout(LayoutKind.Sequential)]
+        private struct LASTINPUTINFO
+        {
+            public uint cbSize;
+            public uint dwTime;
+        }
+
+        public static uint GetIdleTime()
+        {
+            LASTINPUTINFO lastInputInfo = new LASTINPUTINFO();
+            lastInputInfo.cbSize = (uint)Marshal.SizeOf(lastInputInfo);
+
+            if (GetLastInputInfo(ref lastInputInfo))
+            {
+                uint idleTime = (uint)Environment.TickCount - lastInputInfo.dwTime;
+                return idleTime;
+            }
+            return 0;
+        }
+
+
+        private void CreateDirectories()
+        {
+            Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "afk_end"));
+            Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "afk_loop"));
+            Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "afk_start"));
+            Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "appear"));
+            Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "dissapear"));
+            Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "interact"));
+            Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "random"));
+        }
+
+
+
+        const int AppearChance = 100;
+        const int MinStealthTime = 2;
+        const int RandomEventReverseChance = 1000;
+        const int MinutesToAFK = 1;
+        Rect workscreen = new Rect(0, -1, 100, 100);
+
         Random _rand = new Random(DateTime.Now.Microsecond);
         private DispatcherTimer _timer;
         const int _ticksPerSecond = 5;
+        DateTime _stealthStartTime = DateTime.MinValue;
+        bool _afk = false;
+        string _baseDir = AppDomain.CurrentDomain.BaseDirectory;
         void TimerTick(object? sender, EventArgs? e)
         {
-            if (AnimImage.IsMouseOver)
-            {
-                _CuriosityStart = DateTime.Now;
-            } 
-
             if (AnimImage.Visibility == Visibility.Hidden)
             {
-                if (_CuriosityStart.AddSeconds(StealthDurationTime) <= DateTime.Now)
+                if (_stealthStartTime.AddSeconds(MinStealthTime) <= DateTime.Now && _rand.Next(0, AppearChance) == 0)
                 {
                     AnimImage.Visibility = Visibility.Visible;
                     AppearEvent();
                 }
             }
-            else if (_rand.Next(0, RandomEventReverseChance) == 0)
+            else if (!_afk)
             {
-                RandomEvent();
+                if (GetIdleTime() > MinutesToAFK * 60 * 1000)
+                {
+                    AFKStartEvent();
+                }
+                else if (_rand.Next(0, RandomEventReverseChance) == 0)
+                {
+                    RandomEvent();
+                }
             }
+            else if (GetIdleTime() <= MinutesToAFK * 60 * 1000)
+            {
+                AFKEndEvent();
+            }
+            
         }
 
         private void AnimImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -138,7 +181,7 @@ namespace Expie
 
 
             AnimImage.Visibility = Visibility.Hidden;
-            _CuriosityStart = DateTime.Now;
+            _stealthStartTime = DateTime.Now;
         }
 
         private async void AppearEvent()
@@ -148,17 +191,17 @@ namespace Expie
 
         private async void AFKStartEvent()
         {
-
+            _afk = true;
         }
 
         private async void AFKEndEvent()
         {
-
+            _afk = false;
         }
 
         private async void RandomEvent()
         {
-            HideEvent();
+            // HideEvent();
             // Random event realisation
         }
     }
