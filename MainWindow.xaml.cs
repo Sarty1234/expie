@@ -16,8 +16,8 @@ namespace Expie
     /// </summary>
     public partial class MainWindow : Window
     {
-        const int AppearChance = 300;
-        const int MinStealthTime = 60;
+        const int AppearChance = 1;
+        const int MinStealthTime = 1;
         const int RandomEventReverseChance = 1500;
         const int MinutesToAFK = 2;
         Rect workscreen = new Rect(0, -1, 100, 100);
@@ -30,7 +30,7 @@ namespace Expie
         string _baseDir = AppDomain.CurrentDomain.BaseDirectory;
         private bool _isPlaying = false;
         private RoutedEventHandler _currentCompletionHandler;
-        string[] afk_endAnims, afk_loopAnims, loopAnims, dissapearAnims, interactAnims, randomAnims;
+        string[] afk_endAnims, afk_loopAnims, loopAnims, dissapearAnims, appearAnims, interactAnims, randomAnims;
 
 
 
@@ -134,6 +134,7 @@ namespace Expie
             Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "afk_loop"));
             Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "loop"));
             Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "dissapear"));
+            Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "appear"));
             Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "interact"));
             Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "random"));
         }
@@ -147,6 +148,7 @@ namespace Expie
             afk_loopAnims = Directory.GetFiles(Path.Combine(_baseDir, "Gifs", "afk_loop"), "*.gif");
             loopAnims = Directory.GetFiles(Path.Combine(_baseDir, "Gifs", "loop"), "*.gif");
             dissapearAnims = Directory.GetFiles(Path.Combine(_baseDir, "Gifs", "dissapear"), "*.gif");
+            appearAnims = Directory.GetFiles(Path.Combine(_baseDir, "Gifs", "appear"), "*.gif");
             interactAnims = Directory.GetFiles(Path.Combine(_baseDir, "Gifs", "interact"), "*.gif");
             randomAnims = Directory.GetFiles(Path.Combine(_baseDir, "Gifs", "random"), "*.gif");
         }
@@ -229,7 +231,8 @@ namespace Expie
             {
                 if (_stealthStartTime.AddSeconds(MinStealthTime) <= DateTime.Now && _rand.Next(0, AppearChance) == 0)
                 {
-                    AppearEvent();
+                    AnimImage.Visibility = Visibility.Visible;
+                    _ = PlayTransientAnimationAsync(appearAnims);
                 }
             }
             else if (!_afk)
