@@ -1,9 +1,13 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using System.IO;
+using WpfAnimatedGif;
 
 namespace Expie
 {
@@ -12,6 +16,24 @@ namespace Expie
     /// </summary>
     public partial class MainWindow : Window
     {
+        const int AppearChance = 300;
+        const int MinStealthTime = 60;
+        const int RandomEventReverseChance = 1500;
+        const int MinutesToAFK = 2;
+        Rect workscreen = new Rect(0, -1, 100, 100);
+
+        Random _rand = new Random(DateTime.Now.Microsecond);
+        private DispatcherTimer _timer;
+        const int _ticksPerSecond = 5;
+        DateTime _stealthStartTime = DateTime.MinValue;
+        bool _afk = false;
+        string _baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        private bool _isPlaying = false;
+        private RoutedEventHandler _currentCompletionHandler;
+        string[] afk_endAnims, afk_loopAnims, loopAnims, dissapearAnims, interactAnims, randomAnims;
+
+
+
 
         public MainWindow()
         {
@@ -43,12 +65,15 @@ namespace Expie
 
 
             CreateDirectories();
+            LoadAnimations();
 
 
             _timer = new DispatcherTimer();
             _timer.Interval = TimeSpan.FromMilliseconds(1000 / _ticksPerSecond);
             _timer.Tick += TimerTick;
             _timer.Start();
+
+            AppearEvent();
         }
 
 
@@ -64,7 +89,6 @@ namespace Expie
                 Left = workscreen.X;
             } else
             {
-                // SystemParameters.PrimaryScreenWidth
                 Left = SystemParameters.WorkArea.Width + workscreen.X - workscreen.Width;
             }
             if (workscreen.Y >= 0)
@@ -103,12 +127,12 @@ namespace Expie
         }
 
 
+
         private void CreateDirectories()
         {
             Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "afk_end"));
             Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "afk_loop"));
-            Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "afk_start"));
-            Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "appear"));
+            Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "loop"));
             Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "dissapear"));
             Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "interact"));
             Directory.CreateDirectory(Path.Combine(_baseDir, "Gifs", "random"));
@@ -116,25 +140,95 @@ namespace Expie
 
 
 
-        const int AppearChance = 100;
-        const int MinStealthTime = 2;
-        const int RandomEventReverseChance = 1000;
-        const int MinutesToAFK = 1;
-        Rect workscreen = new Rect(0, -1, 100, 100);
 
-        Random _rand = new Random(DateTime.Now.Microsecond);
-        private DispatcherTimer _timer;
-        const int _ticksPerSecond = 5;
-        DateTime _stealthStartTime = DateTime.MinValue;
-        bool _afk = false;
-        string _baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        private void LoadAnimations()
+        {
+            afk_endAnims = Directory.GetFiles(Path.Combine(_baseDir, "Gifs", "afk_end"), "*.gif");
+            afk_loopAnims = Directory.GetFiles(Path.Combine(_baseDir, "Gifs", "afk_loop"), "*.gif");
+            loopAnims = Directory.GetFiles(Path.Combine(_baseDir, "Gifs", "loop"), "*.gif");
+            dissapearAnims = Directory.GetFiles(Path.Combine(_baseDir, "Gifs", "dissapear"), "*.gif");
+            interactAnims = Directory.GetFiles(Path.Combine(_baseDir, "Gifs", "interact"), "*.gif");
+            randomAnims = Directory.GetFiles(Path.Combine(_baseDir, "Gifs", "random"), "*.gif");
+        }
+
+        private void ClearAnimImage()
+        {
+            if (_currentCompletionHandler != null)
+            {
+                ImageBehavior.RemoveAnimationCompletedHandler(AnimImage, _currentCompletionHandler);
+                _currentCompletionHandler = null;
+            }
+
+            var controller = ImageBehavior.GetAnimationController(AnimImage);
+            if (controller != null)
+            {
+                controller.Dispose();
+            }
+
+            ImageBehavior.SetAnimatedSource(AnimImage, null);
+            AnimImage.Source = null;
+        }
+
+        public static BitmapImage LoadOptimizedBitmap(string filePath)
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.UriSource = new Uri(Path.GetFullPath(filePath), UriKind.Absolute);
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.EndInit();
+            return bitmap;
+        }
+
+
+        private Task PlayAndWaitAsync(Image image)
+        {
+            var tcs = new TaskCompletionSource<bool>();
+
+            _currentCompletionHandler = (sender, e) =>
+            {
+                ImageBehavior.RemoveAnimationCompletedHandler(image, _currentCompletionHandler);
+                _currentCompletionHandler = null;
+                tcs.TrySetResult(true);
+            };
+
+            ImageBehavior.AddAnimationCompletedHandler(image, _currentCompletionHandler);
+
+            return tcs.Task;
+        }
+
+
+        private async Task PlayTransientAnimationAsync(string[] animFiles)
+        {
+            if (animFiles == null || animFiles.Length == 0) return;
+
+            _isPlaying = true;
+            try
+            {
+                ClearAnimImage();
+                ImageBehavior.SetRepeatBehavior(AnimImage, new RepeatBehavior(1));
+                ImageBehavior.SetAnimatedSource(AnimImage, LoadOptimizedBitmap(animFiles[_rand.Next(animFiles.Length)]));
+
+                await PlayAndWaitAsync(AnimImage);
+            }
+            finally
+            {
+                _isPlaying = false;
+            }
+
+            AppearEvent();
+        }
+
+
+
+
         void TimerTick(object? sender, EventArgs? e)
         {
+            if (_isPlaying) return;
+
             if (AnimImage.Visibility == Visibility.Hidden)
             {
                 if (_stealthStartTime.AddSeconds(MinStealthTime) <= DateTime.Now && _rand.Next(0, AppearChance) == 0)
                 {
-                    AnimImage.Visibility = Visibility.Visible;
                     AppearEvent();
                 }
             }
@@ -146,63 +240,75 @@ namespace Expie
                 }
                 else if (_rand.Next(0, RandomEventReverseChance) == 0)
                 {
-                    RandomEvent();
+                    _ = PlayTransientAnimationAsync(randomAnims);
                 }
             }
             else if (GetIdleTime() <= MinutesToAFK * 60 * 1000)
             {
-                AFKEndEvent();
+                _afk = false;
+                _ = PlayTransientAnimationAsync(afk_endAnims);
             }
             
         }
 
         private void AnimImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            InteractEvent();
+            if (_isPlaying) return;
+
+            _ = PlayTransientAnimationAsync(interactAnims);
         }
 
-        private void AnimImage_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        private async void AnimImage_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
-            HideEvent();
+            if (_isPlaying) return;
+
+            _isPlaying = true;
+            try
+            {
+                if (dissapearAnims.Length > 0)
+                {
+                    ClearAnimImage();
+                    ImageBehavior.SetRepeatBehavior(AnimImage, new RepeatBehavior(1));
+                    ImageBehavior.SetAnimatedSource(AnimImage, LoadOptimizedBitmap(dissapearAnims[_rand.Next(dissapearAnims.Length)]));
+                    await PlayAndWaitAsync(AnimImage);
+                }
+
+                ClearAnimImage();
+                AnimImage.Visibility = Visibility.Hidden;
+                _stealthStartTime = DateTime.Now;
+            }
+            finally
+            {
+                _isPlaying = false;
+            }
         }
 
 
 
-
-        private async void InteractEvent()
+        private void AppearEvent()
         {
+            AnimImage.Visibility = Visibility.Visible;
 
-        }
-        
-        private async void HideEvent()
-        {
-            // play hiding gif here
-            await Task.Delay(100);
+            if (loopAnims.Length > 0)
+            {
+                ClearAnimImage();
 
-
-            AnimImage.Visibility = Visibility.Hidden;
-            _stealthStartTime = DateTime.Now;
+                ImageBehavior.SetRepeatBehavior(AnimImage, RepeatBehavior.Forever);
+                ImageBehavior.SetAnimatedSource(AnimImage, LoadOptimizedBitmap(loopAnims[_rand.Next(0, loopAnims.Length)]));
+            }
         }
 
-        private async void AppearEvent()
-        {
-
-        }
-
-        private async void AFKStartEvent()
+        private void AFKStartEvent()
         {
             _afk = true;
-        }
 
-        private async void AFKEndEvent()
-        {
-            _afk = false;
-        }
+            if (afk_loopAnims.Length > 0)
+            {
+                ClearAnimImage();
 
-        private async void RandomEvent()
-        {
-            // HideEvent();
-            // Random event realisation
+                ImageBehavior.SetRepeatBehavior(AnimImage, RepeatBehavior.Forever);
+                ImageBehavior.SetAnimatedSource(AnimImage, LoadOptimizedBitmap(afk_loopAnims[_rand.Next(0, afk_loopAnims.Length)]));
+            }
         }
     }
 }
